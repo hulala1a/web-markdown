@@ -1,10 +1,12 @@
-use std::{fmt::{self, Debug}, rc::Rc};
-
+use std::{
+    cell::RefCell,
+    fmt::{self, Debug},
+    rc::Rc,
+};
 
 use pulldown_cmark::{Alignment, HeadingLevel, LinkType};
-use serde::de::value;
-use wasm_bindgen::JsValue;
-use web_sys::{Document, Element,Text as TextElement};
+
+use web_sys::{Document, Element, Text as TextElement};
 
 use crate::event::Position;
 
@@ -12,91 +14,124 @@ use crate::event::Position;
 pub enum Node {
     // Document:
     /// Root.
-    Root(Root,ElementNode),
+    Root(Root, ElementNode),
 
     // Container:
     /// Block quote.
-    BlockQuote(BlockQuote),
+    BlockQuote(BlockQuote, ElementNode),
+
     /// Footnote definition.
-    // FootnoteDefinition(FootnoteDefinition),
+
     /// MDX: JSX element (container).
-    // MdxJsxFlowElement(MdxJsxFlowElement),
+
     /// List.
-    List(List),
+    List(List, ElementNode),
 
     // Frontmatter:
     /// MDX.js ESM.
-    // MdxjsEsm(MdxjsEsm),
+
     /// Toml.
-    // Toml(Toml),
+
     /// Yaml.
-    // Yaml(Yaml),
 
     // Phrasing:
     /// Break.
-    SoftBreak(SoftBreak),
-    HardBreak(HardBreak),
+    SoftBreak(SoftBreak, ElementNode),
+    HardBreak(HardBreak, ElementNode),
+
     /// Code (phrasing).
-    InlineCode(InlineCode),
+    InlineCode(InlineCode, ElementNode),
+
     /// Math (phrasing).
-    // InlineMath(InlineMath),
+
     /// Delete.
-    Delete(Delete),
-    // /// Emphasis.
-    Emphasis(Emphasis),
-    // // MDX: expression (text).
-    // MdxTextExpression(MdxTextExpression),
-    // /// Footnote reference.
-    // FootnoteReference(FootnoteReference),
-    // /// Html (phrasing).
-    Html(Html),
-    // /// Image.
-    Image(Image),
-    // /// Image reference.
-    // ImageReference(ImageReference),
-    // // MDX: JSX element (text).
-    // MdxJsxTextElement(MdxJsxTextElement),
-    // /// Link.
-    Link(Link),
-    // /// Link reference.
-    // LinkReference(LinkReference),
-    // /// Strong
-    Strong(Strong),
-    // /// Text.
-    Text(Text,TextNode),
+    Delete(Delete, ElementNode),
 
-    // // Flow:
-    // /// Code (flow).
-    Code(Code),
-    // /// Math (flow).
-    // Math(Math),
-    // // MDX: expression (flow).
-    // MdxFlowExpression(MdxFlowExpression),
-    // /// Heading.
-    Heading(Heading,ElementNode),
-    // Html(Html),
-    Table(Table),
-    TableHead(TableHead),
-    // /// Thematic break.
-    // ThematicBreak(ThematicBreak),
+    /// Emphasis.
+    Emphasis(Emphasis, ElementNode),
 
-    // // Table content.
-    // /// Table row.
-    TableRow(TableRow),
+    // MDX: expression (text).
+    /// Footnote reference.
 
-    // // Row content.
-    // /// Table cell.
-    TableCell(TableCell),
+    /// Html (phrasing).
+    Html(Html, ElementNode),
 
-    // // List content.
-    // /// List item.
-    ListItem(ListItem),
+    /// Image.
+    Image(Image, ElementNode),
 
-    // // Content.
-    // /// Definition.
-    // Definition(Definition),
-    // /// Paragraph.
-    Paragraph(Paragraph,ElementNode),
+    /// Image reference.
+
+    /// Link.
+    Link(Link, ElementNode),
+
+    /// Link reference.
+
+    /// Strong
+    Strong(Strong, ElementNode),
+
+    /// Text.
+    Text(Text, TextNode),
+
+    // Flow:
+    /// Code (flow).
+    Code(Code, ElementNode),
+
+    /// Math (flow).
+
+    /// Heading.
+    Heading(Heading, ElementNode),
+
+    /// Table
+    Table(Table, ElementNode),
+
+    // Table content.
+    /// Table head.
+    TableHead(TableHead, ElementNode),
+
+    /// Table row.
+    TableRow(TableRow, ElementNode),
+
+    /// Table cell.
+    TableCell(TableCell, ElementNode),
+
+    // List content.
+    /// List item.
+    ListItem(ListItem, ElementNode),
+
+    /// Paragraph.
+    Paragraph(Paragraph, ElementNode),
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        // TODO
+        match (self, other) {
+            (Node::Root(_, _), Node::Root(_, _)) => true,
+            (Node::BlockQuote(_, _), Node::BlockQuote(_, _)) => true,
+            (Node::List(_, _), Node::List(_, _)) => true,
+            (Node::SoftBreak(_, _), Node::SoftBreak(_, _)) => true,
+            (Node::HardBreak(_, _), Node::HardBreak(_, _)) => true,
+            (Node::InlineCode(_, _), Node::InlineCode(_, _)) => true,
+            (Node::Delete(_, _), Node::Delete(_, _)) => true,
+            (Node::Emphasis(_, _), Node::Emphasis(_, _)) => true,
+            (Node::Html(_, _), Node::Html(_, _)) => true,
+            (Node::Image(_, _), Node::Image(_, _)) => true,
+            (Node::Link(_, _), Node::Link(_, _)) => true,
+            (Node::Strong(_, _), Node::Strong(_, _)) => true,
+            (Node::Text(_, _), Node::Text(_, _)) => true,
+            (Node::Code(_, _), Node::Code(_, _)) => true,
+            (Node::Heading(heading_self, _), Node::Heading(heading_other, _)) => {
+                heading_self.depth == heading_other.depth
+            }
+            (Node::Table(_, _), Node::Table(_, _)) => true,
+            (Node::TableHead(_, _), Node::TableHead(_, _)) => true,
+            (Node::TableRow(_, _), Node::TableRow(_, _)) => true,
+            (Node::TableCell(_, _), Node::TableCell(_, _)) => true,
+            (Node::ListItem(_, _), Node::ListItem(_, _)) => true,
+            (Node::Paragraph(_, _), Node::Paragraph(_, _)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Debug for Node {
@@ -104,166 +139,555 @@ impl fmt::Debug for Node {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Node::Root(x, _) => x.fmt(f),
-            Node::BlockQuote(x) => x.fmt(f),
-            // Node::FootnoteDefinition(x) => x.fmt(f),
-            // Node::MdxJsxFlowElement(x) => x.fmt(f),
-            Node::List(x) => x.fmt(f),
-            // Node::MdxjsEsm(x) => x.fmt(f),
-            // Node::Toml(x) => x.fmt(f),
-            // Node::Yaml(x) => x.fmt(f),
-            Node::SoftBreak(x) => x.fmt(f),
-            Node::HardBreak(x) => x.fmt(f),
-            Node::InlineCode(x) => x.fmt(f),
-            // Node::InlineMath(x) => x.fmt(f),
-            Node::Delete(x) => x.fmt(f),
-            Node::Emphasis(x) => x.fmt(f),
-            // Node::MdxTextExpression(x) => x.fmt(f),
-            // Node::FootnoteReference(x) => x.fmt(f),
-            Node::Html(x) => x.fmt(f),
-            Node::Image(x) => x.fmt(f),
-            // Node::ImageReference(x) => x.fmt(f),
-            // Node::MdxJsxTextElement(x) => x.fmt(f),
-            Node::Link(x) => x.fmt(f),
-            // Node::LinkReference(x) => x.fmt(f),
-            Node::Strong(x) => x.fmt(f),
-            Node::Text(x,_) => x.fmt(f),
-            Node::Code(x) => x.fmt(f),
-            // Node::Math(x) => x.fmt(f),
-            // Node::MdxFlowExpression(x) => x.fmt(f),
+            Node::BlockQuote(x, _) => x.fmt(f),
+            Node::List(x, _) => x.fmt(f),
+            Node::SoftBreak(x, _) => x.fmt(f),
+            Node::HardBreak(x, _) => x.fmt(f),
+            Node::InlineCode(x, _) => x.fmt(f),
+            Node::Delete(x, _) => x.fmt(f),
+            Node::Emphasis(x, _) => x.fmt(f),
+            Node::Html(x, _) => x.fmt(f),
+            Node::Image(x, _) => x.fmt(f),
+            Node::Link(x, _) => x.fmt(f),
+            Node::Strong(x, _) => x.fmt(f),
+            Node::Text(x, _) => x.fmt(f),
+            Node::Code(x, _) => x.fmt(f),
             Node::Heading(x, _) => x.fmt(f),
-            Node::Table(x) => x.fmt(f),
-            // Node::ThematicBreak(x) => x.fmt(f),
-            Node::TableHead(x) => x.fmt(f),
-            Node::TableRow(x) => x.fmt(f),
-            Node::TableCell(x) => x.fmt(f),
-            Node::ListItem(x) => x.fmt(f),
-            // Node::Definition(x) => x.fmt(f),
-            Node::Paragraph(x,_) => x.fmt(f),
+            Node::Table(x, _) => x.fmt(f),
+            Node::TableHead(x, _) => x.fmt(f),
+            Node::TableRow(x, _) => x.fmt(f),
+            Node::TableCell(x, _) => x.fmt(f),
+            Node::ListItem(x, _) => x.fmt(f),
+            Node::Paragraph(x, _) => x.fmt(f),
         }
     }
 }
 
 impl Node {
     #[must_use]
-    pub fn children(& self) -> Option<&Vec<Node>> {
+    pub fn children(&self) -> Option<&Vec<Rc<RefCell<Node>>>> {
         match self {
             // Parent.
             Node::Root(x, _) => Some(&x.children),
-            Node::Paragraph(x,_) => Some(&x.children),
+            Node::Paragraph(x, _) => Some(&x.children),
             Node::Heading(x, _) => Some(&x.children),
-            Node::BlockQuote(x) => Some(&x.children),
-            Node::List(x) => Some(&x.children),
-            Node::ListItem(x) => Some(&x.children),
-            Node::Emphasis(x) => Some(&x.children),
-            Node::Strong(x) => Some(&x.children),
-            Node::Link(x) => Some(&x.children),
-            // Node::LinkReference(x) => Some(&x.children),
-            // Node::FootnoteDefinition(x) => Some(&x.children),
-            Node::Table(x) => Some(&x.children),
-            Node::TableHead(x) => Some(&x.children),
-            Node::TableRow(x) => Some(&x.children),
-            Node::TableCell(x) => Some(&x.children),
-            Node::Delete(x) => Some(&x.children),
-            // Node::MdxJsxFlowElement(x) => Some(&x.children),
-            // Node::MdxJsxTextElement(x) => Some(&x.children),
+            Node::BlockQuote(x, _) => Some(&x.children),
+            Node::List(x, _) => Some(&x.children),
+            Node::ListItem(x, _) => Some(&x.children),
+            Node::Emphasis(x, _) => Some(&x.children),
+            Node::Strong(x, _) => Some(&x.children),
+            Node::Link(x, _) => Some(&x.children),
+            Node::Table(x, _) => Some(&x.children),
+            Node::TableHead(x, _) => Some(&x.children),
+            Node::TableRow(x, _) => Some(&x.children),
+            Node::TableCell(x, _) => Some(&x.children),
+            Node::Delete(x, _) => Some(&x.children),
+            _ => None,
+        }
+    }
+    pub fn value(&self) -> Option<&String> {
+        match self {
+            // Parent.
+            Node::Text(x, _) => x.value.as_ref(),
+            Node::Code(x, _) => x.value.as_ref(),
+            Node::InlineCode(x, _) => x.value.as_ref(),
+            Node::Html(x, _) => x.value.as_ref(),
+            // Node::Paragraph(x,_) => Some(&x.children),
+            // Node::Heading(x, _) => Some(&x.children),
+            // Node::BlockQuote(x, _) => Some(&x.children),
+            // Node::List(x, _) => Some(&x.children),
+            // Node::ListItem(x, _) => Some(&x.children),
+            // Node::Emphasis(x, _) => Some(&x.children),
+            // Node::Strong(x, _) => Some(&x.children),
+            // Node::Link(x, _) => Some(&x.children),
+            // Node::Table(x, _) => Some(&x.children),
+            // Node::TableHead(x, _) => Some(&x.children),
+            // Node::TableRow(x, _) => Some(&x.children),
+            // Node::TableCell(x, _) => Some(&x.children),
+            // Node::Delete(x, _) => Some(&x.children),
             // Non-parent.
             _ => None,
         }
     }
 
-    pub fn children_mut(& mut self) -> Option<&mut Vec<Node>> {
+    pub fn url(&self) -> Option<&String> {
+        match self {
+            // Parent.
+            // Node::Text(x, _) => x.value.as_ref(),
+            // Node::Code(x, _) => x.value.as_ref(),
+            // Node::InlineCode(x, _) => x.value.as_ref(),
+            // Node::Html(x, _) => x.value.as_ref(),
+            // Node::Paragraph(x,_) => Some(&x.children),
+            // Node::Heading(x, _) => Some(&x.children),
+            // Node::BlockQuote(x, _) => Some(&x.children),
+            // Node::List(x, _) => Some(&x.children),
+            // Node::ListItem(x, _) => Some(&x.children),
+            // Node::Emphasis(x, _) => Some(&x.children),
+            // Node::Strong(x, _) => Some(&x.children),
+            Node::Link(x, _) => x.url.as_ref(),
+            Node::Image(x, _) => x.url.as_ref(),
+            // Node::Table(x, _) => Some(&x.children),
+            // Node::TableHead(x, _) => Some(&x.children),
+            // Node::TableRow(x, _) => Some(&x.children),
+            // Node::TableCell(x, _) => Some(&x.children),
+            // Node::Delete(x, _) => Some(&x.children),
+            // Non-parent.
+            _ => None,
+        }
+    }
+
+    pub fn title(&self) -> Option<&String> {
+        match self {
+            // Parent.
+            // Node::Text(x, _) => x.value.as_ref(),
+            // Node::Code(x, _) => x.value.as_ref(),
+            // Node::InlineCode(x, _) => x.value.as_ref(),
+            // Node::Html(x, _) => x.value.as_ref(),
+            // Node::Paragraph(x,_) => Some(&x.children),
+            // Node::Heading(x, _) => Some(&x.children),
+            // Node::BlockQuote(x, _) => Some(&x.children),
+            // Node::List(x, _) => Some(&x.children),
+            // Node::ListItem(x, _) => Some(&x.children),
+            // Node::Emphasis(x, _) => Some(&x.children),
+            // Node::Strong(x, _) => Some(&x.children),
+            Node::Link(x, _) => x.title.as_ref(),
+            Node::Image(x, _) => x.title.as_ref(),
+            // Node::Table(x, _) => Some(&x.children),
+            // Node::TableHead(x, _) => Some(&x.children),
+            // Node::TableRow(x, _) => Some(&x.children),
+            // Node::TableCell(x, _) => Some(&x.children),
+            // Node::Delete(x, _) => Some(&x.children),
+            // Non-parent.
+            _ => None,
+        }
+    }
+    // pub fn parent(&self) -> Option<&Rc<RefCell<Node>>> {
+    //     match self {
+    //         // Parent.
+    //         Node::Root(_, x) => {
+    //             let parent_el = x.parent.as_ref();
+    //             parent_el
+    //         }
+    //         Node::Paragraph(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Heading(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::BlockQuote(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::List(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::ListItem(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Emphasis(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Strong(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Link(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         // Node::LinkReference(x) => Some(&x.children),
+    //         // Node::FootnoteDefinition(x) => Some(&x.children),
+    //         Node::Table(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableHead(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableRow(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableCell(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Delete(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::MdxJsxFlowElement(x) => Some(&x.children),
+    //         Node::MdxJsxTextElement(x) => Some(&x.children),
+    //         Non-parent.
+    //         _ => None,
+    //     }
+    // }
+
+    // pub fn parent_mut(&mut self) -> Option<&mut Rc<RefCell<Node>>> {
+    //     match self {
+    //         // Parent.
+    //         Node::Root(_, x) => {
+    //             let parent_el = x.parent.as_mut();
+    //             parent_el
+    //         }
+    //         Node::Paragraph(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Heading(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::BlockQuote(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::List(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::ListItem(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Emphasis(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Strong(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Link(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         // Node::LinkReference(x) => Some(&x.children),
+    //         // Node::FootnoteDefinition(x) => Some(&x.children),
+    //         Node::Table(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableHead(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableRow(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableCell(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Delete(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::MdxJsxFlowElement(x) => Some(&x.children),
+    //         Node::MdxJsxTextElement(x) => Some(&x.children),
+    //         Non-parent.
+    //         _ => None,
+    //     }
+    // }
+
+    // pub fn set_parent(&mut self, parent: Option<&Rc<RefCell<Node>>>) {
+    //     match self {
+    //         // Parent.
+    //         Node::Root(_, x) => {
+    //             x.parent = parent.cloned();
+    //         }
+    //         Node::Paragraph(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Heading(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::BlockQuote(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::List(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::ListItem(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Emphasis(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Strong(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Link(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         // Node::LinkReference(x) => Some(&x.children),
+    //         // Node::FootnoteDefinition(x) => Some(&x.children),
+    //         Node::Table(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableHead(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableRow(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::TableCell(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::Delete(_,x) => x.parent.unwrap().borrow().node_mut(),
+    //         Node::MdxJsxFlowElement(x) => Some(&x.children),
+    //         Node::MdxJsxTextElement(x) => Some(&x.children),
+    //         Non-parent.
+    //         _ => {}
+    //     }
+    // }
+
+    pub fn children_mut(&mut self) -> Option<&mut Vec<Rc<RefCell<Node>>>> {
         match self {
             // Parent.
             Node::Root(x, _) => Some(&mut x.children),
-            Node::Paragraph(x,_) => Some(&mut x.children),
+            Node::Paragraph(x, _) => Some(&mut x.children),
             Node::Heading(x, _) => Some(&mut x.children),
-            Node::BlockQuote(x) => Some(&mut x.children),
-            Node::List(x) => Some(&mut x.children),
-            Node::ListItem(x) => Some(&mut x.children),
-            Node::Emphasis(x) => Some(&mut x.children),
-            Node::Strong(x) => Some(&mut x.children),
-            Node::Link(x) => Some(&mut x.children),
-            // Node::LinkReference(x) => Some(&mut x.children),
-            // Node::FootnoteDefinition(x) => Some(&mut x.children),
-            Node::Table(x) => Some(&mut x.children),
-            Node::TableHead(x) => Some(&mut x.children),
-            Node::TableRow(x) => Some(&mut x.children),
-            Node::TableCell(x) => Some(&mut x.children),
-            Node::Delete(x) => Some(&mut x.children),
-            // Node::MdxJsxFlowElement(x) => Some(&mut x.children),
-            // Node::MdxJsxTextElement(x) => Some(&mut x.children),
+            Node::BlockQuote(x, _) => Some(&mut x.children),
+            Node::List(x, _) => Some(&mut x.children),
+            Node::ListItem(x, _) => Some(&mut x.children),
+            Node::Emphasis(x, _) => Some(&mut x.children),
+            Node::Strong(x, _) => Some(&mut x.children),
+            Node::Link(x, _) => Some(&mut x.children),
+            Node::Table(x, _) => Some(&mut x.children),
+            Node::TableHead(x, _) => Some(&mut x.children),
+            Node::TableRow(x, _) => Some(&mut x.children),
+            Node::TableCell(x, _) => Some(&mut x.children),
+            Node::Delete(x, _) => Some(&mut x.children),
             // Non-parent.
             _ => None,
         }
     }
 
-    pub fn value_set(&mut self,value:String){
-        match self {
-            // Parent.
-            Node::Code(x) => x.value = Some(value),
-            // Node::Paragraph(x) => Some(&mut x.children),
-            // Node::Heading(x) => Some(&mut x.children),
-            // Node::BlockQuote(x) => Some(&mut x.children),
-            // Node::List(x) => Some(&mut x.children),
-            // Node::ListItem(x) => Some(&mut x.children),
-            // Node::Emphasis(x) => Some(&mut x.children),
-            // Node::Strong(x) => Some(&mut x.children),
-            // Node::Link(x) => Some(&mut x.children),
-            // Node::LinkReference(x) => Some(&mut x.children),
-            // Node::FootnoteDefinition(x) => Some(&mut x.children),
-            // Node::Table(x) => Some(&mut x.children),
-            // Node::TableRow(x) => Some(&mut x.children),
-            // Node::TableCell(x) => Some(&mut x.children),
-            // Node::Delete(x) => Some(&mut x.children),
-            // Node::MdxJsxFlowElement(x) => Some(&mut x.children),
-            // Node::MdxJsxTextElement(x) => Some(&mut x.children),
-            // Non-parent.
-            _=>{}
+    pub fn create(&mut self, doc: &Document, parent_rc: Rc<RefCell<Node>>) {
+        let parent = parent_rc.borrow();
+
+        if let Some(parent_element) = parent.node_mut() {
+            match parent_element {
+                DocNode::Element(parent_node) => {
+                    let child_element = self.create_node(doc, Some(Rc::clone(&parent_rc))).unwrap();
+                    match child_element {
+                        DocNode::Element(child_node) => {
+                            parent_node.append_child(child_node).unwrap();
+                        }
+                        DocNode::Text(child_node) => {
+                            parent_node.append_child(child_node).unwrap();
+                        }
+                    }
+                }
+                DocNode::Text(_) => {}
+            }
+        }
+        if let Some(children) = self.children() {
+            for child in children {
+                let mut cur_child = child.borrow_mut();
+                cur_child.create(doc, Rc::new(RefCell::new(self.clone())));
+            }
         }
     }
-    pub fn create_node(& mut self,document:&Document,parent:&Node)->Option<&DocNode>{
+
+    pub fn node_mut(&self) -> Option<&DocNode> {
         match self {
-            Node::Root(x, _) => todo!(),
-            Node::BlockQuote(_) => todo!(),
-            Node::List(_) => todo!(),
-            Node::SoftBreak(_) => todo!(),
-            Node::HardBreak(_) => todo!(),
-            Node::InlineCode(_) => todo!(),
-            Node::Delete(_) => todo!(),
-            Node::Emphasis(_) => todo!(),
-            Node::Html(_) => todo!(),
-            Node::Image(_) => todo!(),
-            Node::Link(_) => todo!(),
-            Node::Strong(_) => todo!(),
-            Node::Text(x,node) => {
-                node.cur = Some(DocNode::Text(document.create_text_node(&x.value.clone().unwrap())));
-                node.parent = Box::new(parent);
+            // Parent.
+            Node::Root(_, node) => node.cur.as_ref(),
+            Node::Paragraph(_, node) => node.cur.as_ref(),
+            Node::Heading(_, node) => node.cur.as_ref(),
+            Node::Text(_, node) => node.cur.as_ref(),
+            Node::BlockQuote(_, node) => node.cur.as_ref(),
+            Node::List(_, node) => node.cur.as_ref(),
+            Node::SoftBreak(_, node) => node.cur.as_ref(),
+            Node::HardBreak(_, node) => node.cur.as_ref(),
+            Node::InlineCode(_, node) => node.cur.as_ref(),
+            Node::Delete(_, node) => node.cur.as_ref(),
+            Node::Emphasis(_, node) => node.cur.as_ref(),
+            Node::Html(_, node) => node.cur.as_ref(),
+            Node::Image(_, node) => node.cur.as_ref(),
+            Node::Link(_, node) => node.cur.as_ref(),
+            Node::Strong(_, node) => node.cur.as_ref(),
+            Node::Code(_, node) => node.cur.as_ref(),
+            Node::Table(_, node) => node.cur.as_ref(),
+            Node::TableHead(_, node) => node.cur.as_ref(),
+            Node::TableRow(_, node) => node.cur.as_ref(),
+            Node::TableCell(_, node) => node.cur.as_ref(),
+            Node::ListItem(_, node) => node.cur.as_ref(),
+            // Non-parent.
+        }
+    }
+
+    pub fn set_node(&mut self, el: Option<&DocNode>) {
+        match self {
+            // Parent.
+            Node::Root(_, node) => node.cur = el.cloned(),
+            Node::Paragraph(_, node) => node.cur = el.cloned(),
+            Node::Heading(_, node) => node.cur = el.cloned(),
+            Node::Text(_, node) => node.cur = el.cloned(),
+            Node::BlockQuote(_, node) => node.cur = el.cloned(),
+            Node::List(_, node) => node.cur = el.cloned(),
+            Node::SoftBreak(_, node) => node.cur = el.cloned(),
+            Node::HardBreak(_, node) => node.cur = el.cloned(),
+            Node::InlineCode(_, node) => node.cur = el.cloned(),
+            Node::Delete(_, node) => node.cur = el.cloned(),
+            Node::Emphasis(_, node) => node.cur = el.cloned(),
+            Node::Html(_, node) => node.cur = el.cloned(),
+            Node::Image(_, node) => node.cur = el.cloned(),
+            Node::Link(_, node) => node.cur = el.cloned(),
+            Node::Strong(_, node) => node.cur = el.cloned(),
+            Node::Code(_, node) => node.cur = el.cloned(),
+            Node::Table(_, node) => node.cur = el.cloned(),
+            Node::TableHead(_, node) => node.cur = el.cloned(),
+            Node::TableRow(_, node) => node.cur = el.cloned(),
+            Node::TableCell(_, node) => node.cur = el.cloned(),
+            Node::ListItem(_, node) => node.cur = el.cloned(),
+            // Non-parent.
+        }
+    }
+    // pub fn value_set(&mut self,value:String){
+    //     match self {
+    //         // Parent.
+    //         Node::Code(x) => x.value = Some(value),
+    // Node::Paragraph(x) => Some(&mut x.children),
+    // Node::Heading(x) => Some(&mut x.children),
+    // Node::BlockQuote(x) => Some(&mut x.children),
+    // Node::List(x) => Some(&mut x.children),
+    // Node::ListItem(x) => Some(&mut x.children),
+    // Node::Emphasis(x) => Some(&mut x.children),
+    // Node::Strong(x) => Some(&mut x.children),
+    // Node::Link(x) => Some(&mut x.children),
+    // Node::LinkReference(x) => Some(&mut x.children),
+    // Node::FootnoteDefinition(x) => Some(&mut x.children),
+    // Node::Table(x) => Some(&mut x.children),
+    // Node::TableRow(x) => Some(&mut x.children),
+    // Node::TableCell(x) => Some(&mut x.children),
+    // Node::Delete(x) => Some(&mut x.children),
+    // Node::MdxJsxFlowElement(x) => Some(&mut x.children),
+    // Node::MdxJsxTextElement(x) => Some(&mut x.children),
+    // Non-parent.
+    // _=>{}
+    // }
+    // }
+    pub fn create_node(
+        &mut self,
+        document: &Document,
+        parent: Option<Rc<RefCell<Node>>>,
+    ) -> Option<&DocNode> {
+        match self {
+            Node::Root(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("div").unwrap()));
+                node.parent = parent;
                 node.cur.as_ref()
                 // for child in x.children{
                 //     child.create_node(document);
                 // }
-            },
-            Node::Code(_) => todo!(),
-            Node::Heading(x,node) => {
-                node.cur = Some(DocNode::Element(document.create_element(create_heading_text(x.depth)).unwrap()));
+            }
+            Node::BlockQuote(x, node) => {
+                node.cur = Some(DocNode::Element(
+                    document.create_element("blockquote").unwrap(),
+                ));
+                node.parent = parent;
                 node.cur.as_ref()
                 // for child in x.children{
                 //     child.create_node(document);
                 // }
-            },
-            Node::Table(_) => todo!(),
-            Node::TableHead(_) => todo!(),
-            Node::TableRow(_) => todo!(),
-            Node::TableCell(_) => todo!(),
-            Node::ListItem(_) => todo!(),
-            Node::Paragraph(x,node) => {
+            }
+            Node::List(x, node) => {
+                node.cur = match x.index {
+                    None => Some(DocNode::Element(document.create_element("ul").unwrap())),
+                    _ => Some(DocNode::Element(document.create_element("ol").unwrap())),
+                };
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::SoftBreak(x, node) => {
+                node.cur = Some(DocNode::Text(document.create_text_node(" ")));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::HardBreak(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("br").unwrap()));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::InlineCode(x, node) => {
+                let code = document.create_element("code").unwrap();
+                let content = document.create_text_node(&x.value.clone().unwrap());
+                code.append_child(&content).unwrap();
+                node.cur = Some(DocNode::Element(code));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Delete(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("del").unwrap()));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Emphasis(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("em").unwrap()));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Html(x, node) => {
+                let div = document.create_element("div").unwrap();
+                div.set_inner_html(&x.value.clone()?);
+                node.cur = Some(DocNode::Element(div));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Image(x, node) => {
+                let link = document.create_element("img").unwrap();
+                if let Some(src) = &x.url {
+                    link.set_attribute("src", src).unwrap();
+                }
+                if let Some(title) = &x.title {
+                    link.set_attribute("title", title).unwrap();
+                }
+                node.cur = Some(DocNode::Element(link));
+                node.parent = parent;
+                node.cur.as_ref()
+            }
+            Node::Link(x, node) => {
+                let link = document.create_element("a").unwrap();
+                if let Some(url) = &x.url {
+                    link.set_attribute("href", url).unwrap();
+                }
+                if let Some(title) = &x.title {
+                    link.set_attribute("title", title).unwrap();
+                }
+                node.cur = Some(DocNode::Element(link));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Strong(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("strong").unwrap()));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Text(x, node) => {
+                node.cur = Some(DocNode::Text(
+                    document.create_text_node(&x.value.clone().unwrap()),
+                ));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Code(x, node) => {
+                let pre = document.create_element("pre").unwrap();
+                let code = document.create_element("code").unwrap();
+                let content = document
+                    .create_text_node(&x.value.clone().map_or_else(|| "".to_string(), |x| x));
+                pre.append_child(&code)
+                    .unwrap()
+                    .append_child(&content)
+                    .unwrap();
+                node.cur = Some(DocNode::Element(pre));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Heading(x, node) => {
+                node.cur = Some(DocNode::Element(
+                    document
+                        .create_element(create_heading_text(x.depth))
+                        .unwrap(),
+                ));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Table(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("table").unwrap()));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::TableHead(x, node) => {
+                // let head = document.create_element("thead").unwrap();
+                let tr = document.create_element("tr").unwrap();
+
+                // head.append_child(&tr).unwrap();
+                node.cur = Some(DocNode::Element(tr));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::TableRow(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("tr").unwrap()));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::TableCell(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("th").unwrap()));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::ListItem(x, node) => {
+                node.cur = Some(DocNode::Element(document.create_element("li").unwrap()));
+                node.parent = parent;
+                node.cur.as_ref()
+                // for child in x.children{
+                //     child.create_node(document);
+                // }
+            }
+            Node::Paragraph(x, node) => {
                 node.cur = Some(DocNode::Element(document.create_element("p").unwrap()));
+                node.parent = parent;
                 node.cur.as_ref()
                 // for child in x.children{
                 //     child.create_node(document);
                 // }
-            
-            },
+            }
         }
     }
     // #[must_use]
@@ -385,230 +809,165 @@ impl Node {
     // }
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Root {
-    // Parent.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Heading {
-    // Parent.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
-    // Extra.
-    /// Rank (between `1` and `6`, both including).
     pub depth: u8,
 }
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Text {
-    // Text.
-    /// Content model.
     pub value: Option<String>,
-    /// Positional info.
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct List {
-    // Text.
-    /// Content model.
     pub index: Option<u64>,
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ListItem {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Code {
-    // Text.
-    /// Content model.
     pub lang: Option<String>,
     pub value: Option<String>,
-    // pub children: Vec<Node>,
-    /// Positional info.
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Paragraph {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Emphasis {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Strong {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Table {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
     pub alignment: Vec<Alignment>,
 }
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TableHead {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TableRow {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TableCell {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BlockQuote {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Delete {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Link {
-    // Text.
-    /// Content model.
-    pub children: Vec<Node>,
-    /// Positional info.
+    pub children: Vec<Rc<RefCell<Node>>>,
     pub position: Option<Position>,
     pub link_type: LinkType,
     pub url: Option<String>,
     pub title: Option<String>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Image {
-    // Text.
-    /// Content model.
-    // pub children: Vec<Node>,
-    /// Positional info.
     pub position: Option<Position>,
     pub link_type: LinkType,
     pub url: Option<String>,
     pub title: Option<String>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SoftBreak {
-    // Text.
-    /// Content model.
-    // pub children: Vec<Node>,
-    /// Positional info.
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct HardBreak {
-    // Text.
-    /// Content model.
-    // pub children: Vec<Node>,
-    /// Positional info.
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct InlineCode {
-    pub value:Option<String>,
-    // Text.
-    /// Content model.
-    // pub children: Vec<Node>,
-    /// Positional info.
+    pub value: Option<String>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Html {
-    pub value:Option<String>,
-    // Text.
-    /// Content model.
-    // pub children: Vec<Node>,
-    /// Positional info.
+    pub value: Option<String>,
     pub position: Option<Position>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ElementNode {
     pub cur: Option<DocNode>,
-    pub parent: Option<Box<Node>>,
+    pub parent: Option<Rc<RefCell<Node>>>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TextNode {
     pub cur: Option<DocNode>,
-    pub parent: Option<Box<Node>>,
+    pub parent: Option<Rc<RefCell<Node>>>,
 }
 
 impl ElementNode {
     pub fn default() -> Self {
-        ElementNode { cur: None, parent: None }
+        ElementNode {
+            cur: None,
+            parent: None,
+        }
     }
 }
 
 impl TextNode {
     pub fn default() -> Self {
-        TextNode { cur: None, parent: None }
+        TextNode {
+            cur: None,
+            parent: None,
+        }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DocNode {
     Element(Element),
     Text(TextElement),
