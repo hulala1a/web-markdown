@@ -39,138 +39,6 @@ extern "C" {
     //   pub fn __random() -> u8;
 }
 
-// pub struct BufferStorage {
-//   pub buffer_map: HashMap<String, Vec<u8>>
-// }
-
-// impl BufferStorage {
-//     fn new() -> Self {
-//       BufferStorage {
-//         buffer_map: HashMap::new()
-//       }
-//     }
-// }
-
-// macro_rules! log {
-//   ($($t:tt)*) => (crate::log(&("[C]".to_string() + &format_args!($($t)*).to_string())))
-// }
-
-// lazy_static! {
-//   pub static ref GlobalBufferStorage: Mutex<BufferStorage> = {
-//     let buffer_storage = BufferStorage::new();
-//     Mutex::new(buffer_storage)
-//   };
-// }
-
-// #[wasm_bindgen]
-// pub fn set_wasm_panic_hook() {
-//   // can be continued
-//   set_panic_hook();
-// }
-
-// #[wasm_bindgen]
-// pub fn get_buffer(key: String) -> *const u8 {
-//   let mut global_buffer_storage = GlobalBufferStorage.lock().unwrap();
-//   if let Some(buffer) = global_buffer_storage.buffer_map.get(&key) {
-//     return buffer.as_ptr();
-//   } else {
-//     return Vec::new().as_ptr();
-//   }
-// }
-
-// #[wasm_bindgen]
-// pub fn print_buffer(key: String) {
-//   let mut global_buffer_storage = GlobalBufferStorage.lock().unwrap();
-//   if let Some(buffer) = global_buffer_storage.buffer_map.get(&key) {
-//     log!("[render-wasm]print buffer: {:?}", buffer);
-//   }
-// }
-
-// #[wasm_bindgen]
-// pub fn remove_buffer(key: String) {
-//   let mut global_buffer_storage = GlobalBufferStorage.lock().unwrap();
-//   if let Some(buffer) = global_buffer_storage.buffer_map.remove(&key) {
-//     log!("remove buffer success");
-//   } else {
-//     log!("remove buffer error");
-//   }
-// }
-
-// #[wasm_bindgen]
-// pub fn render_markdown(key: String) -> String {
-//     // let mut global_buffer_storage = GlobalBufferStorage.lock().unwrap();
-//     let mut html_output = String::new();
-//     // if let Some(buffer) = global_buffer_storage.buffer_map.get_mut(&key){
-//         let options = Options::empty();
-//         let parser = Parser::new_ext(&key, options);
-//         // let parser = Parser::new_ext(std::str::from_utf8(&buffer).unwrap(), options);
-//         html::push_html(&mut html_output, parser);
-//     // }
-//     html_output
-// }
-
-// #[wasm_bindgen]
-// pub fn new_buffer(key: String, len: usize) -> *const u8 {
-//   log!("new_buffer, key: {:?}, len: {:?}", key, len);
-//   let mut global_buffer_storage = GlobalBufferStorage.lock().unwrap();
-//   let mut buffer = vec![255; len];
-//
-// //   for val in buffer.iter_mut() {
-// //     *val = __random();
-// //   }
-//   let ptr = buffer.as_ptr();
-//   global_buffer_storage.buffer_map.insert(key, buffer);
-//   ptr
-// }
-
-// #[wasm_bindgen]
-// pub fn wwwwaaaa()-> Result<(), JsValue>  {
-//     // let window = window().unwrap();
-//     // let doc = window.document().unwrap();
-//
-//     // // let test_node = doc.get_element_by_id("test").unwrap();
-//
-//     // // test_node.set_text_content(Some("Rust 操作 Dom"));
-//     // let child_node = doc.create_element("div").unwrap();
-//     // let  body = doc.body().unwrap();
-//     // body.append_child(&child_node)
-//     let window = web_sys::window().expect("no global `window` exists");
-//     let document = window.document().expect("should have a document on window");
-//     let body = document.body().expect("document should have a body");
-
-//     // Manufacture the element we're gonna append
-//     let val = document.create_element("p")?;
-//     val.set_text_content(Some("Hello from Rust!"));
-
-//     body.append_child(&val)?;
-
-//     Ok(())
-//
-//     // let _ = window.alert_with_message("我是通过 web_sys 生成的");
-//     // String::from('a')
-// }
-// #[wasm_bindgen]
-// pub fn t(markdown_input:String) {
-
-//   let mut compileContext: CompileContext = CompileContext::new();
-//   let parser = Parser::new(&markdown_input);
-//   let node = compileContext.run(parser).unwrap();
-//   //  print!("{:#?}", node)
-// }
-// #[wasm_bindgen]
-// pub fn t4(markdown_input:String) {
-//   panic::set_hook(Box::new(console_error_panic_hook::hook));
-
-//   let window = window().unwrap();
-//   let doc = window.document().unwrap();
-//   let mut compileContext: CompileContext = CompileContext::new();
-//   let mut options = Options::empty();
-//   options.insert(Options::ENABLE_STRIKETHROUGH);
-//   options.insert(Options::ENABLE_TABLES);
-//   let parser = Parser::new_ext(&markdown_input,options);
-//   let root = compileContext.run(parser).unwrap();
-// }
-
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct CompileContext {
@@ -506,39 +374,6 @@ impl CompileContext {
         let node = self.stack.pop().unwrap();
         let parent = self.stack.pop();
         self.push_node_to_parent(node, parent);
-
-        // match tag {
-        //     Tag::Heading(level,id ,classes ) => {
-        //         let node = self.stack.pop().unwrap();
-        //         let mut parent = self.stack.pop().unwrap();
-        //         self.push_node_to_parent(node, parent);
-
-        //     },
-        //     Tag::List(index)=>{
-        //         let node = self.stack.pop().unwrap();
-        //         let mut parent = self.stack.pop().unwrap();
-        //         println!("1:{}", self.stack.len());
-        //         self.push_node_to_parent(node, parent);
-        //         println!("listend");
-        //     }
-        //     Tag::Item=>{
-        //         let node = self.stack.pop().unwrap();
-        //         let mut parent = self.stack.pop().unwrap();
-        //         println!("1:{}", self.stack.len());
-        //         self.push_node_to_parent(node, parent);
-        //         println!("itemend");
-        //     }
-        //     // Tag::Paragraph => {
-        //     //     if self.end_newline {
-        //     //         self.write("<p>")
-        //     //     } else {
-        //     //         self.write("\n<p>")
-        //     //     }
-        //     // }
-        //     _ => {
-        //         println!("ok");
-        //     }
-        // }
         Ok(())
     }
 
@@ -585,38 +420,24 @@ impl CompileContext {
         let cur_root1 = root_rc.borrow();
         if let Some(children) = cur_root1.children() {
             for child in children {
-                // log("123");
                 let mut cur_child = child.borrow_mut();
                 cur_child.create(&doc, root_rc.clone());
             }
         }
     }
-    // fn diff(&self) -> bool {
-    //     let res = match &self.old_root {
-    //         Some(old) => {
-    //             let o = old.borrow();
-    //             let r = self.root.borrow();
-    //             *o == *r
-    //         }
-    //         _ => false,
-    //     };
-    //     res
-    // }
+
     pub fn render(&mut self, markdown_input: &str) {
         if markdown_input == "" {
             return;
         }
 
         self.run(markdown_input);
-        // log(&self.diff().to_string()) ;
         let new_root = self.root.clone();
         match &self.old_root {
             None => {
-                // log("11112344");
                 self.init();
             }
             Some(_root) => {
-                // log("3331");
                 {
                     let old = _root.borrow();
                     let mut new = (&new_root).borrow_mut();

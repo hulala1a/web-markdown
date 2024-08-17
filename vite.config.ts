@@ -3,7 +3,7 @@ import wasmPack from 'vite-plugin-wasm-pack';
 
 export default defineConfig({
   build: {
-    minify: false
+    minify: false,
   },
-  plugins: [wasmPack(['./my-crate'])]
+  plugins: [wasmPack(['./markdown-render', './text-generation'])],
 });

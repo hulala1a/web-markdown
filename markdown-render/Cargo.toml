@@ -1,5 +1,5 @@
 [package]
-name = "my-crate"
+name = "markdown_render"
 version = "0.1.0"
 authors = ["lxy <liuxinyucpu@163.com>"]
 edition = "2018"

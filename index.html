@@ -8,23 +8,149 @@
     <script type="module" src="/src/index.ts"></script>
   </head>
   <body>
-    <div class="flex h-screen">
-      <div class="line-edit-wrapper flex-1">
-        <div class="flex h-full" id="container">
-          <textarea
-            id="line-numbers-textarea"
-            class="w-10 p-3 resize-none focus:outline-none overflow-hidden h-full"
-            rows="5"
-            disabled
-          ></textarea>
-          <textarea
-            id="input-textarea"
-            class="flex-1 p-3 resize-none focus:outline-none overflow-hidden h-full"
-            rows="5"
-          ></textarea>
+    <div class="flex h-screen flex-col">
+      <div>
+        <div>
+          <div class="grid grid-cols-4 w-full items-center gap-3 py-3">
+            <div class="flex align-middle">
+              <label for="model" class="text-sm font-medium px-1">Models Options: </label>
+              <select id="model" class="border-2 border-gray-500 rounded-md font-light"></select>
+            </div>
+            <div class="flex align-middle">
+              <label class="text-sm font-medium px-1" for="max-seq">Maximum length: </label>
+              <input
+                type="range"
+                id="max-seq"
+                name="max-seq"
+                min="1"
+                max="256"
+                step="1"
+                value="200"
+                oninput="this.nextElementSibling.value = Number(this.value)"
+              />
+              <output class="text-xs w-[50px] text-center font-light px-1 py-1 border border-gray-700 rounded-md">
+                200</output
+              >
+            </div>
+            <div class="flex align-middle">
+              <label class="text-sm font-medium px-1" for="temperature">Temperature: </label>
+              <input
+                type="range"
+                id="temperature"
+                name="temperature"
+                min="0"
+                max="2"
+                step="0.01"
+                value="0.40"
+                oninput="this.nextElementSibling.value = Number(this.value).toFixed(2)"
+              />
+              <output class="text-xs w-[50px] text-center font-light px-1 py-1 border border-gray-700 rounded-md">
+                0.40</output
+              >
+            </div>
+            <div class="flex align-middle">
+              <label class="text-sm font-medium px-1" for="top-p">Top-p: </label>
+              <input
+                type="range"
+                id="top-p"
+                name="top-p"
+                min="0"
+                max="1"
+                step="0.01"
+                value="1.00"
+                oninput="this.nextElementSibling.value = Number(this.value).toFixed(2)"
+              />
+              <output class="text-xs w-[50px] text-center font-light px-1 py-1 border border-gray-700 rounded-md">
+                1.00</output
+              >
+            </div>
+            <div class="flex align-middle">
+              <label class="text-sm font-medium px-1" for="repeat_penalty">Repeat Penalty: </label>
+
+              <input
+                type="range"
+                id="repeat_penalty"
+                name="repeat_penalty"
+                min="1"
+                max="2"
+                step="0.01"
+                value="1.10"
+                oninput="this.nextElementSibling.value = Number(this.value).toFixed(2)"
+              />
+              <output class="text-xs w-[50px] text-center font-light px-1 py-1 border border-gray-700 rounded-md"
+                >1.10</output
+              >
+            </div>
+            <div class="align-middle">
+              <label class="text-sm font-medium" for="seed">Seed: </label>
+              <input
+                type="number"
+                id="seed"
+                name="seed"
+                value="299792458"
+                class="font-light border border-gray-700 text-right rounded-md p-2"
+              />
+              <button
+                id="rand"
+                onclick="document.querySelector('#seed').value = BigInt(Math.floor(Math.random() * 2**64-1))"
+                class="bg-gray-700 hover:bg-gray-800 text-white font-normal py-1 w-[50px] rounded disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
+              >
+                Rand
+              </button>
+            </div>
+            <div>
+              <label class="text-sm font-medium" for="prompt">Prompt: </label>
+              <input
+                type="text"
+                id="prompt"
+                name="prompt"
+                value="Please help me expand the following markdown:"
+                class="font-light border border-gray-700 text-right rounded-md p-2"
+              />
+            </div>
+            <div>
+              <button
+                id="run"
+                class="bg-gray-700 hover:bg-gray-800 text-white font-normal mx-2 py-1 w-14 rounded disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Run
+              </button>
+              <button
+                id="render-result"
+                class="bg-gray-700 hover:bg-gray-800 text-white font-normal mx-2 py-1 w-14 rounded disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                Render
+              </button>
+              <span id="output-counter" hidden class="ml-auto font-semibold grid-rows-1 text-sm"></span>
+              <span id="output-status" class="m-auto font-light">No output yet</span>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="flex-1 p-3" id="render"></div>
+      <div class="flex flex-1">
+        <div class="line-edit-wrapper h-full w-5/12">
+          <div class="flex h-full w-full" id="container">
+            <textarea
+              id="line-numbers-textarea"
+              class="w-10 p-3 resize-none focus:outline-none overflow-hidden h-auto"
+              rows="5"
+              disabled
+            ></textarea>
+            <div class="flex-1 relative resize-none focus:outline-none overflow-hidden h-auto flex">
+              <div
+                class="font-mono leading-normal border p-3 h-auto opacity-20 absolute left-0 top-0 w-auto text-base font-normal max-w-full"
+                id="background-text"
+              ></div>
+              <textarea
+                id="input-textarea"
+                class="font-mono leading-normal border p-3 w-full h-auto text-base font-normal z-10 bg-transparent"
+                rows="5"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="flex-1 w-auto p-3 prose" id="render"></div>
+      </div>
     </div>
   </body>
 </html>
